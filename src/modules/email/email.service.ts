@@ -10,21 +10,40 @@ const transporter = nodemailer.createTransport({
 	auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
 })
 
+export async function verifySmtpConnection(): Promise<boolean> {
+	if (!env.SMTP_HOST) {
+		logger.warn("SMTP not configured — emails will be skipped")
+		return false
+	}
+	try {
+		await Promise.race([
+			transporter.verify(),
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error("SMTP verify timed out after 10s")), 10_000),
+			),
+		])
+		logger.info("SMTP connection verified")
+		return true
+	} catch (err) {
+		logger.error("SMTP verification failed — check credentials or network", { err })
+		return false
+	}
+}
+
 async function send(to: string, subject: string, html: string) {
 	if (!env.SMTP_HOST) {
-		// No SMTP configured (e.g. local dev) — log instead of throwing so the
-		// auth flow keeps working without real credentials.
 		logger.warn(`SMTP not configured; skipping email send to ${to} ("${subject}")`)
 		if (!isProd) logger.debug(html)
 		return
 	}
 
-	await transporter.sendMail({
+	const info = await transporter.sendMail({
 		from: env.EMAIL_FROM,
 		to,
 		subject,
 		html,
 	})
+	logger.debug("Email sent", { messageId: info.messageId, to, subject })
 }
 
 export async function sendOtpEmail(to: string, name: string, code: string) {

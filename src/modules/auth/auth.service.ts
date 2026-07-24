@@ -13,6 +13,8 @@ import {
 import { sendOtpEmail, sendPasswordResetEmail, sendWelcomeEmail } from "../email/email.service"
 import { authLogger } from "../../config/logger"
 import { env } from "../../config/env"
+import { prisma } from "../../database/prisma"
+import { isProd } from "../../config/env"
 import type { RegisterInput, LoginInput } from "./auth.validator"
 import type { DeviceContext } from "./auth.types"
 
@@ -32,14 +34,6 @@ function sanitizeUser(user: {
 	createdAt: Date
 }) {
 	return user
-}
-
-async function issueOtp(userId: string, email: string, name: string) {
-	await authRepository.invalidatePendingOtps(userId)
-	const code = generateOtpCode()
-	const codeHash = await hashOtpCode(code)
-	await authRepository.createOtp({ userId, codeHash, expiresAt: otpExpiryDate() })
-	await sendOtpEmail(email, name, code)
 }
 
 async function issueAuthTokens(user: { id: string; role: string; username: string }, device: DeviceContext) {
@@ -75,16 +69,35 @@ export const authService = {
 		if (existingUsername) throw ApiError.conflict("This username is already taken")
 
 		const passwordHash = await hashPassword(input.password)
-		const user = await authRepository.createUser({
-			name: input.name,
-			username: input.username,
-			email: input.email,
-			passwordHash,
+		const code = generateOtpCode()
+		const codeHash = await hashOtpCode(code)
+		const expiresAt = otpExpiryDate()
+
+		const user = await prisma.$transaction(async (tx) => {
+			const u = await tx.user.create({
+				data: { name: input.name, username: input.username, email: input.email, passwordHash },
+			})
+			await tx.oTPVerification.updateMany({
+				where: { userId: u.id, purpose: "EMAIL_VERIFICATION", consumedAt: null },
+				data: { consumedAt: new Date() },
+			})
+			await tx.oTPVerification.create({
+				data: { userId: u.id, codeHash, expiresAt, purpose: "EMAIL_VERIFICATION" },
+			})
+			return u
 		})
 
-		await issueOtp(user.id, user.email, user.name)
-		authLogger.info("User registered, OTP issued", { userId: user.id })
+		try {
+			await sendOtpEmail(user.email, user.name, code)
+		} catch (err) {
+			authLogger.error("Account created but OTP email send failed", { userId: user.id, err })
+			throw ApiError.internal(
+				"Account created but verification email could not be sent. Request a new code using the resend option.",
+			)
+		}
 
+		if (!isProd) authLogger.info("OTP code", { userId: user.id, code })
+		authLogger.info("User registered, OTP issued", { userId: user.id })
 		return { id: user.id, email: user.email, username: user.username }
 	},
 
@@ -103,8 +116,17 @@ export const authService = {
 			throw ApiError.badRequest("Incorrect verification code")
 		}
 
-		await authRepository.consumeOtp(otp.id)
-		await authRepository.markUserVerified(user.id)
+		await prisma.$transaction(async (tx) => {
+			await tx.oTPVerification.update({
+				where: { id: otp.id },
+				data: { consumedAt: new Date() },
+			})
+			await tx.user.update({
+				where: { id: user.id },
+				data: { isVerified: true },
+			})
+		})
+
 		authLogger.info("Email verified", { userId: user.id })
 		void sendWelcomeEmail(user.email, user.name).catch(() => undefined)
 
@@ -113,9 +135,36 @@ export const authService = {
 
 	async resendOtp(email: string) {
 		const user = await authRepository.findUserByEmail(email)
-		if (!user) throw ApiError.notFound("No account found for this email")
-		if (user.isVerified) throw ApiError.badRequest("This account is already verified")
-		await issueOtp(user.id, user.email, user.name)
+		// Always respond with success to avoid leaking whether an email is registered.
+		if (!user || user.isVerified) return { sent: true }
+
+		// Rate-limit resends: allow one OTP per 60 seconds per user.
+		const latestOtp = await prisma.oTPVerification.findFirst({
+			where: { userId: user.id, purpose: "EMAIL_VERIFICATION" },
+			orderBy: { createdAt: "desc" },
+		})
+		if (latestOtp && Date.now() - latestOtp.createdAt.getTime() < 60_000) {
+			throw ApiError.tooMany("Please wait at least 60 seconds before requesting a new code")
+		}
+
+		const code = generateOtpCode()
+		const codeHash = await hashOtpCode(code)
+
+		await prisma.$transaction(async (tx) => {
+			await tx.oTPVerification.updateMany({
+				where: { userId: user.id, purpose: "EMAIL_VERIFICATION", consumedAt: null },
+				data: { consumedAt: new Date() },
+			})
+			await tx.oTPVerification.create({
+				data: { userId: user.id, codeHash, expiresAt: otpExpiryDate(), purpose: "EMAIL_VERIFICATION" },
+			})
+		})
+
+		try {
+			await sendOtpEmail(user.email, user.name, code)
+		} catch (err) {
+			authLogger.error("Resend OTP email send failed", { userId: user.id, err })
+		}
 		return { sent: true }
 	},
 

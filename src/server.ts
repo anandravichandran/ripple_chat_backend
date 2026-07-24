@@ -4,9 +4,13 @@ import { env } from "./config/env"
 import { logger } from "./config/logger"
 import { connectDatabase, disconnectDatabase } from "./database/prisma"
 import { initSocket } from "./modules/socket/socket.server"
+import { verifySmtpConnection } from "./modules/email/email.service"
+import { startCleanupJob } from "./jobs/cleanup"
 
 async function bootstrap() {
 	await connectDatabase()
+	await verifySmtpConnection()
+	startCleanupJob()
 
 	const app = createApp()
 	const httpServer = http.createServer(app)

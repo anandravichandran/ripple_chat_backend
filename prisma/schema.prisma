@@ -1,0 +1,334 @@
+// Ripple Chat — Prisma schema (PostgreSQL / Neon)
+// UUID primary keys, normalized relations, indexes on all foreign keys and
+// frequently filtered columns.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================
+// Enums
+// ==============================
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ONLINE
+  IDLE
+  DND
+  OFFLINE
+}
+
+enum RoomVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum RoomMemberRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+enum NotificationKind {
+  MENTION
+  MESSAGE
+  REPLY
+  INVITE
+  ROOM
+  SYSTEM
+  REACTION
+  FRIEND
+}
+
+enum OTPPurpose {
+  EMAIL_VERIFICATION
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+// ==============================
+// User
+// ==============================
+
+model User {
+  id             String     @id @default(uuid())
+  name           String
+  username       String     @unique
+  email          String     @unique
+  passwordHash   String
+  avatarUrl      String?
+  avatarPublicId String?
+  bio            String?    @db.VarChar(280)
+  phone          String?
+  socials        Json?
+  role           UserRole   @default(USER)
+  status         UserStatus @default(OFFLINE)
+  isVerified     Boolean    @default(false)
+  lastSeen       DateTime   @default(now())
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  ownedRooms         Room[]            @relation("RoomOwner")
+  roomMemberships    RoomMember[]
+  messages           Message[]
+  reactions          MessageReaction[]
+  notifications      Notification[]   @relation("NotificationRecipient")
+  actorNotifications Notification[]   @relation("NotificationActor")
+  refreshTokens      RefreshToken[]
+  otpVerifications   OTPVerification[]
+  passwordResets     PasswordReset[]
+  sessions           Session[]
+  devices            Device[]
+
+  @@index([email])
+  @@index([username])
+  @@map("users")
+}
+
+// ==============================
+// Room / RoomMember
+// ==============================
+
+model Room {
+  id           String         @id @default(uuid())
+  name         String
+  icon         String?
+  description  String?
+  category     String?        @default("general")
+  visibility   RoomVisibility @default(PUBLIC)
+  isDirect     Boolean        @default(false)
+  passwordHash String?
+  inviteCode   String         @unique @default(uuid())
+  ownerId      String
+  owner        User           @relation("RoomOwner", fields: [ownerId], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  members  RoomMember[]
+  messages Message[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([category])
+  @@index([isDirect])
+  @@map("rooms")
+}
+
+model RoomMember {
+  id                String         @id @default(uuid())
+  roomId            String
+  room              Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              RoomMemberRole @default(MEMBER)
+  pinned            Boolean        @default(false)
+  recentlyJoined    Boolean        @default(true)
+  unreadCount       Int            @default(0)
+  lastReadMessageId String?
+  joinedAt          DateTime       @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@index([roomId])
+  @@map("room_members")
+}
+
+// ==============================
+// Message / Reaction / Attachment
+// ==============================
+
+model Message {
+  id          String      @id @default(uuid())
+  roomId      String
+  room        Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id])
+  text        String?
+  type        MessageType @default(TEXT)
+  replyToId   String?
+  replyTo     Message?    @relation("MessageReply", fields: [replyToId], references: [id])
+  replies     Message[]   @relation("MessageReply")
+  pinned      Boolean     @default(false)
+  edited      Boolean     @default(false)
+  editedAt    DateTime?
+  deliveredAt DateTime?
+  seenAt      DateTime?
+  mentions    String[]    @default([])
+  deletedAt   DateTime?
+  createdAt   DateTime    @default(now())
+
+  attachments   Attachment[]
+  reactions     MessageReaction[]
+  notifications Notification[]
+
+  @@index([roomId, createdAt])
+  @@index([authorId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("message_reactions")
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url       String
+  publicId  String
+  fileName  String
+  fileType  String
+  fileSize  Int
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+// ==============================
+// Notification
+// ==============================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  kind      NotificationKind
+  title     String
+  body      String?
+  read      Boolean          @default(false)
+  actorId   String?
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id])
+  roomId    String?
+  messageId String?
+  message   Message?         @relation(fields: [messageId], references: [id])
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ==============================
+// Auth-related: RefreshToken, OTP, PasswordReset
+// ==============================
+
+model RefreshToken {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash           String   @unique
+  family              String
+  revoked             Boolean  @default(false)
+  replacedByTokenHash String?
+  userAgent           String?
+  ip                  String?
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([userId])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model OTPVerification {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  purpose    OTPPurpose @default(EMAIL_VERIFICATION)
+  attempts   Int        @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, purpose])
+  @@map("otp_verifications")
+}
+
+model PasswordReset {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+// ==============================
+// Session / Device (presence + "connected devices")
+// ==============================
+
+model Session {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId      String?
+  device        Device?   @relation(fields: [deviceId], references: [id])
+  refreshFamily String?
+  ip            String?
+  userAgent     String?
+  location      String?
+  current       Boolean   @default(true)
+  lastActiveAt  DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Device {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       DeviceType @default(DESKTOP)
+  name       String?
+  location   String?
+  lastSeenAt DateTime   @default(now())
+  createdAt  DateTime   @default(now())
+
+  sessions Session[]
+
+  @@index([userId])
+  @@map("devices")
+}

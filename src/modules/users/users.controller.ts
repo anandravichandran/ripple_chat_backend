@@ -1,0 +1,32 @@
+import type { Request, Response } from "express"
+import { asyncHandler } from "../../utils/asyncHandler"
+import { ApiResponse } from "../../utils/ApiResponse"
+import { usersService } from "./users.service"
+
+export const usersController = {
+	getMe: asyncHandler(async (req: Request, res: Response) => {
+		const user = await usersService.getMe(req.user!.id)
+		res.status(200).json(ApiResponse.ok("Profile fetched", user))
+	}),
+
+	updateMe: asyncHandler(async (req: Request, res: Response) => {
+		const user = await usersService.updateMe(req.user!.id, req.body)
+		res.status(200).json(ApiResponse.ok("Profile updated", user))
+	}),
+
+	updateAvatar: asyncHandler(async (req: Request, res: Response) => {
+		const user = await usersService.updateAvatar(req.user!.id, req.file)
+		res.status(200).json(ApiResponse.ok("Avatar updated", user))
+	}),
+
+	searchUsers: asyncHandler(async (req: Request, res: Response) => {
+		const { q, page, limit } = req.query as { q?: string; page?: string; limit?: string }
+		const result = await usersService.searchUsers(q, { page, limit })
+		res.status(200).json(ApiResponse.ok("Users fetched", result))
+	}),
+
+	getSessions: asyncHandler(async (req: Request, res: Response) => {
+		const result = await usersService.getSessionsAndDevices(req.user!.id)
+		res.status(200).json(ApiResponse.ok("Sessions fetched", result))
+	}),
+}

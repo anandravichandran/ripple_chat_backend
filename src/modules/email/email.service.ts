@@ -28,7 +28,9 @@ export async function verifySmtpConnection(): Promise<boolean> {
 		logger.info("SMTP connection verified")
 		return true
 	} catch (err) {
-		logger.error("SMTP verification failed — check credentials or network", { err })
+		const message = err instanceof Error ? err.message : String(err)
+		const stack = err instanceof Error ? err.stack : undefined
+		logger.error("SMTP verification failed", { message, stack })
 		smtpHealthy = false
 		return false
 	}

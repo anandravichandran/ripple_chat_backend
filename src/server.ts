@@ -43,6 +43,8 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-	logger.error("Failed to start server", { err })
+	const msg = err instanceof Error ? err.message : String(err)
+	const stack = err instanceof Error ? err.stack : undefined
+	logger.error("Failed to start server", { message: msg, stack })
 	process.exit(1)
 })

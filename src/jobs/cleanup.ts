@@ -28,9 +28,10 @@ async function cleanupExpiredRecords() {
 
 export function startCleanupJob() {
 	cron.schedule("0 * * * *", () => {
-		cleanupExpiredRecords().catch((err) =>
-			logger.error("Cleanup job failed", { err }),
-		)
+		cleanupExpiredRecords().catch((err) => {
+			const msg = err instanceof Error ? err.message : String(err)
+			logger.error("Cleanup job failed", { message: msg })
+		})
 	})
 	logger.info("Cleanup job scheduled (every hour)")
 }

@@ -90,7 +90,8 @@ export const authService = {
 		try {
 			await sendOtpEmail(user.email, user.name, code)
 		} catch (err) {
-			authLogger.error("Account created but OTP email send failed", { userId: user.id, err })
+			const msg = err instanceof Error ? err.message : String(err)
+			authLogger.error("Account created but OTP email send failed", { userId: user.id, message: msg })
 			throw ApiError.internal(
 				"Account created but verification email could not be sent. Request a new code using the resend option.",
 			)
@@ -163,7 +164,8 @@ export const authService = {
 		try {
 			await sendOtpEmail(user.email, user.name, code)
 		} catch (err) {
-			authLogger.error("Resend OTP email send failed", { userId: user.id, err })
+			const msg = err instanceof Error ? err.message : String(err)
+			authLogger.error("Resend OTP email send failed", { userId: user.id, message: msg })
 		}
 		return { sent: true }
 	},

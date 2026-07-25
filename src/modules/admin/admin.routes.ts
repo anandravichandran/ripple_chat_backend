@@ -10,11 +10,13 @@ const router = Router()
 router.use(requireAuth, requireAdmin)
 
 router.get("/analytics", validate({ query: analyticsQuerySchema }), adminController.getAnalytics)
+router.get("/rooms", adminController.listRooms)
 router.get("/users", validate({ query: listUsersQuerySchema }), adminController.listUsers)
 router.get("/users/:id", adminController.getUser)
 router.patch("/users/:id/role", validate({ body: updateUserRoleSchema }), adminController.updateUserRole)
 router.post("/users/:id/suspend", adminController.suspendUser)
 router.post("/users/:id/unsuspend", adminController.unsuspendUser)
 router.delete("/users/:id", adminController.deleteUser)
+router.post("/users/:id/promote", adminController.promoteToAdmin)
 
 export { router as adminRoutes }

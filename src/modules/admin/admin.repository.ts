@@ -145,4 +145,29 @@ export const adminRepository = {
 			topUsers: topUsers.map((u) => ({ id: u.id, name: u.name, username: u.username, messages: u._count.messages })),
 		}
 	},
+
+	listRooms: async (
+		filters: { q?: string; visibility?: string },
+		sort: { sortBy: string; sortOrder: 'asc' | 'desc' },
+		skip: number,
+		take: number,
+	) => {
+		const where: Prisma.RoomWhereInput = { isDirect: false }
+		if (filters.q) where.name = { contains: filters.q, mode: 'insensitive' }
+		if (filters.visibility) where.visibility = filters.visibility as never
+		const orderByField = (sort.sortBy || 'createdAt') as 'createdAt' | 'name' | 'updatedAt'
+		return Promise.all([
+			prisma.room.findMany({
+				where,
+				include: {
+					owner: { select: { id: true, name: true, username: true, avatarUrl: true } },
+					_count: { select: { members: true, messages: true } },
+				},
+				orderBy: { [orderByField]: sort.sortOrder },
+				skip,
+				take,
+			}),
+			prisma.room.count({ where }),
+		])
+	},
 }

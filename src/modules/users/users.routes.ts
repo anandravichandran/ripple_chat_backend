@@ -15,5 +15,6 @@ router.patch("/avatar", uploadAvatar, usersController.updateAvatar)
 router.patch("/banner", uploadAvatar, usersController.updateBanner)
 router.get("/search", validate({ query: userSearchQuerySchema }), usersController.searchUsers)
 router.get("/me/sessions", usersController.getSessions)
+router.get("/:id", usersController.getUserById)
 
 export { router as usersRoutes }

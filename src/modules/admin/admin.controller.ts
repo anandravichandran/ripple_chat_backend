@@ -40,4 +40,15 @@ export const adminController = {
 		const result = await adminService.getAnalytics(days ? Number(days) : 30)
 		res.status(200).json(ApiResponse.ok("Analytics fetched", result))
 	}),
+
+	listRooms: asyncHandler(async (req: Request, res: Response) => {
+		const { q, visibility, sortBy, sortOrder, page, limit } = req.query as Record<string, string>
+		const result = await adminService.listRooms({ q, visibility, sortBy, sortOrder }, { page, limit })
+		res.status(200).json(ApiResponse.ok('Rooms fetched', result))
+	}),
+
+	promoteToAdmin: asyncHandler(async (req: Request, res: Response) => {
+		const user = await adminService.promoteToAdmin(req.user!.id, req.params.id)
+		res.status(200).json(ApiResponse.ok("User promoted to admin", user))
+	}),
 }

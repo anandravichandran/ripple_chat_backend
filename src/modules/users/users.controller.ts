@@ -1,5 +1,6 @@
 import type { Request, Response } from "express"
 import { asyncHandler } from "../../utils/asyncHandler"
+import { ApiError } from "../../utils/ApiError"
 import { ApiResponse } from "../../utils/ApiResponse"
 import { usersService } from "./users.service"
 import { getIO } from "../socket/socket.server"
@@ -36,7 +37,13 @@ export const usersController = {
 	}),
 
 	getSessions: asyncHandler(async (req: Request, res: Response) => {
-		const result = await usersService.getSessionsAndDevices(req.user!.id)
-		res.status(200).json(ApiResponse.ok("Sessions fetched", result))
+		const sessions = await usersService.getSessionsAndDevices(req.user!.id)
+		res.status(200).json(ApiResponse.ok("Sessions fetched", { sessions }))
+	}),
+
+	getUserById: asyncHandler(async (req: Request, res: Response) => {
+		const user = await usersService.getUserById(req.params.id)
+		if (!user) throw new ApiError(404, "User not found")
+		res.status(200).json(ApiResponse.ok("User fetched", user))
 	}),
 }

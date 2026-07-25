@@ -12,6 +12,7 @@ import {
 	setUserOnline,
 	setUserOffline,
 	onlineUserIds,
+	getOnlineUsersForRoom,
 } from "./socket.presence"
 import { prisma } from "../../database/prisma"
 import { messagesRepository } from "../messages/messages.repository"
@@ -89,7 +90,11 @@ async function handleConnection(socket: AppSocket) {
 			}
 			socket.join(`room:${roomId}`)
 			trackRoomJoin(socket.id, roomId)
-			socket.to(`room:${roomId}`).emit(SOCKET_EVENTS.PRESENCE_SYNC, { roomId, userId, online: true })
+			const onlineInRoom = getOnlineUsersForRoom(roomId)
+			io?.to(`room:${roomId}`).emit(SOCKET_EVENTS.PRESENCE_SYNC, { roomId, onlineIds: onlineInRoom })
+			if (membership) {
+				io?.to(`room:${roomId}`).emit(SOCKET_EVENTS.MEMBER_JOINED, { roomId, userId, username })
+			}
 			ack?.({ ok: true, isNewMember: !membership })
 		} catch (err) {
 			socketLogger.error("joinRoom failed", { userId, roomId, err })
@@ -101,7 +106,9 @@ async function handleConnection(socket: AppSocket) {
 	socket.on(SOCKET_EVENTS.LEAVE_ROOM, ({ roomId }: { roomId: string }) => {
 		socket.leave(`room:${roomId}`)
 		trackRoomLeave(socket.id, roomId)
-		socket.to(`room:${roomId}`).emit(SOCKET_EVENTS.PRESENCE_SYNC, { roomId, userId, online: false })
+		const onlineInRoom = getOnlineUsersForRoom(roomId)
+		io?.to(`room:${roomId}`).emit(SOCKET_EVENTS.PRESENCE_SYNC, { roomId, onlineIds: onlineInRoom })
+		io?.to(`room:${roomId}`).emit(SOCKET_EVENTS.MEMBER_LEFT, { roomId, userId })
 	})
 
 	socket.on(

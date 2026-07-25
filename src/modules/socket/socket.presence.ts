@@ -66,3 +66,17 @@ export async function setUserOffline(userId: string) {
 		socketLogger.error("Failed to set user offline", { userId, err })
 	}
 }
+
+export function getOnlineUsersForRoom(roomId: string): string[] {
+	const online = new Set<string>()
+	for (const [socketId, rooms] of socketRooms) {
+		if (rooms.has(roomId)) {
+			for (const [uid, sockets] of userSockets) {
+				if (sockets.has(socketId)) {
+					online.add(uid)
+				}
+			}
+		}
+	}
+	return Array.from(online)
+}

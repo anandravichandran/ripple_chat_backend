@@ -58,4 +58,8 @@ export const usersService = {
 		])
 		return { sessions, devices }
 	},
+
+	async getUserById(userId: string) {
+		return usersRepository.findById(userId)
+	},
 }

@@ -15,7 +15,7 @@ export type CloudinaryUploadResult = {
 	resourceType: string
 }
 
-const UPLOADS_DIR = path.resolve(__dirname, "../../../uploads")
+const UPLOADS_DIR = path.resolve(process.cwd(), "uploads")
 
 function ensureUploadsDir(folder: string) {
 	return fs.mkdir(path.join(UPLOADS_DIR, folder), { recursive: true })

@@ -32,7 +32,7 @@ export function createApp(): Express {
 	)
 	app.use(globalRateLimiter)
 
-	app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")))
+	app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads"), { maxAge: "1d", etag: true, lastModified: true }))
 
 	app.use("/api", apiRouter)
 

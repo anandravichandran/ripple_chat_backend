@@ -37,3 +37,7 @@ export const joinRoomSchema = z.object({
 	password: z.string().optional(),
 	inviteCode: z.string().optional(),
 })
+
+export const createDirectRoomSchema = z.object({
+	participantId: z.string().uuid("Invalid participant id"),
+})

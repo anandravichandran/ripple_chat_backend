@@ -15,6 +15,7 @@ import {
 } from "./socket.presence"
 import { prisma } from "../../database/prisma"
 import { messagesRepository } from "../messages/messages.repository"
+import { messagesService } from "../messages/messages.service"
 import { roomsRepository } from "../rooms/rooms.repository"
 import { notificationsService } from "../notifications/notifications.service"
 
@@ -57,6 +58,10 @@ async function handleConnection(socket: AppSocket) {
 		io?.emit(SOCKET_EVENTS.USER_ONLINE, { userId })
 	}
 
+	// Send newly connected user the current list of online users
+	const allOnlineIds = onlineUserIds()
+	socket.emit(SOCKET_EVENTS.PRESENCE_SYNC, { onlineIds: allOnlineIds })
+
 	// Heartbeat: server pings, client acks. Combined with socket.io's built-in
 	// ping/pong this detects half-open connections quickly and supports
 	// graceful reconnect on the client.
@@ -68,15 +73,24 @@ async function handleConnection(socket: AppSocket) {
 
 	socket.on(SOCKET_EVENTS.JOIN_ROOM, async ({ roomId }: { roomId: string }, ack?: (res: unknown) => void) => {
 		try {
-			const membership = await roomsRepository.findMember(roomId, userId)
+			let membership = await roomsRepository.findMember(roomId, userId)
 			if (!membership) {
-				socket.emit(SOCKET_EVENTS.SOCKET_ERROR, { message: "You are not a member of this room" })
-				return ack?.({ ok: false })
+				const room = await prisma.room.findUnique({ where: { id: roomId }, select: { id: true, visibility: true } })
+				if (!room) {
+					socket.emit(SOCKET_EVENTS.SOCKET_ERROR, { message: "Room not found" })
+					return ack?.({ ok: false })
+				}
+				if (room.visibility === "PUBLIC") {
+					membership = await roomsRepository.addMember(roomId, userId, "MEMBER")
+				} else {
+					socket.emit(SOCKET_EVENTS.SOCKET_ERROR, { message: "You are not a member of this room" })
+					return ack?.({ ok: false })
+				}
 			}
 			socket.join(`room:${roomId}`)
 			trackRoomJoin(socket.id, roomId)
 			socket.to(`room:${roomId}`).emit(SOCKET_EVENTS.PRESENCE_SYNC, { roomId, userId, online: true })
-			ack?.({ ok: true })
+			ack?.({ ok: true, isNewMember: !membership })
 		} catch (err) {
 			socketLogger.error("joinRoom failed", { userId, roomId, err })
 			socket.emit(SOCKET_EVENTS.SOCKET_ERROR, { message: "Failed to join room" })
@@ -97,22 +111,13 @@ async function handleConnection(socket: AppSocket) {
 			ack?: (res: unknown) => void,
 		) => {
 			try {
-				const membership = await roomsRepository.findMember(payload.roomId, userId)
-				if (!membership) throw new Error("NOT_A_MEMBER")
 				if (!payload.text?.trim()) throw new Error("EMPTY_MESSAGE")
-
-				const message = await messagesRepository.create({
-					room: { connect: { id: payload.roomId } },
-					author: { connect: { id: userId } },
+				const message = await messagesService.createMessage(userId, payload.roomId, {
 					text: payload.text.trim(),
 					type: payload.type ?? "TEXT",
-					mentions: payload.mentions ?? [],
-					...(payload.replyToId ? { replyTo: { connect: { id: payload.replyToId } } } : {}),
+					replyToId: payload.replyToId,
+					mentions: payload.mentions,
 				})
-
-				await roomsRepository.incrementUnreadForOthers(payload.roomId, userId)
-				void notificationsService.notifyNewMessage(payload.roomId, message.id, userId, payload.mentions ?? [])
-
 				io?.to(`room:${payload.roomId}`).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, { message })
 				ack?.({ ok: true, message })
 			} catch (err) {

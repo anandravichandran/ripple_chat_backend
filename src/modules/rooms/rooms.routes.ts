@@ -7,6 +7,7 @@ import {
 	updateRoomSchema,
 	listRoomsQuerySchema,
 	joinRoomSchema,
+	createDirectRoomSchema,
 	uuidParamSchema,
 } from "./rooms.validator"
 import { messagesRoutesForRoom } from "../messages/messages.routes"
@@ -15,6 +16,7 @@ const router = Router()
 
 router.use(requireAuth)
 
+router.post("/direct", validate({ body: createDirectRoomSchema }), roomsController.findOrCreateDirectRoom)
 router.post("/", validate({ body: createRoomSchema }), roomsController.createRoom)
 router.get("/", validate({ query: listRoomsQuerySchema }), roomsController.listRooms)
 router.get("/:id", validate({ params: uuidParamSchema }), roomsController.getRoom)

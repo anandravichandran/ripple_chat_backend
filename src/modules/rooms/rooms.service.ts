@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt"
+import { prisma } from "../../database/prisma"
 import { roomsRepository } from "./rooms.repository"
 import { ApiError } from "../../utils/ApiError"
 import { parsePagination, buildMeta } from "../../utils/pagination"
@@ -130,6 +131,61 @@ export const roomsService = {
 
 		const member = await roomsRepository.addMember(roomId, userId, "MEMBER")
 		return { alreadyMember: false, room, member }
+	},
+
+	async findOrCreateDirectRoom(userId: string, participantId: string) {
+		if (userId === participantId) throw ApiError.badRequest("Cannot create a direct message with yourself")
+
+		const participant = await prisma.user.findUnique({ where: { id: participantId }, select: { id: true, name: true } })
+		if (!participant) throw ApiError.notFound("User not found")
+
+		const existingRoom = await prisma.room.findFirst({
+			where: {
+				isDirect: true,
+				AND: [
+					{ members: { some: { userId } } },
+					{ members: { some: { userId: participantId } } },
+				],
+			},
+			include: {
+				_count: { select: { members: true, messages: true } },
+				members: { where: { userId }, select: { pinned: true, recentlyJoined: true, unreadCount: true, role: true } },
+			},
+		})
+
+		if (existingRoom) {
+			const membership = existingRoom.members[0]
+			return {
+				...existingRoom,
+				passwordHash: undefined,
+				memberCount: existingRoom._count.members,
+				viewerRole: membership?.role ?? null,
+			}
+		}
+
+		const room = await prisma.room.create({
+			data: {
+				name: participant.name,
+				icon: null,
+				visibility: "PRIVATE",
+				isDirect: true,
+				ownerId: userId,
+				members: {
+					createMany: {
+						data: [
+							{ userId, role: "OWNER" },
+							{ userId: participantId, role: "MEMBER" },
+						],
+					},
+				},
+			},
+			include: {
+				_count: { select: { members: true, messages: true } },
+				members: { where: { userId }, select: { pinned: true, recentlyJoined: true, unreadCount: true, role: true } },
+			},
+		})
+
+		return { ...room, passwordHash: undefined, memberCount: room._count.members, viewerRole: "OWNER" }
 	},
 
 	async leaveRoom(userId: string, roomId: string) {

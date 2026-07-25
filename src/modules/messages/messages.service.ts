@@ -1,13 +1,19 @@
 import { messagesRepository } from "./messages.repository"
 import { roomsRepository } from "../rooms/rooms.repository"
+import { prisma } from "../../database/prisma"
 import { ApiError } from "../../utils/ApiError"
 import { notificationsService } from "../notifications/notifications.service"
 import type { CreateMessageInput, UpdateMessageInput } from "./messages.validator"
 
 async function assertMember(roomId: string, userId: string) {
 	const membership = await roomsRepository.findMember(roomId, userId)
-	if (!membership) throw ApiError.forbidden("You must join this room first")
-	return membership
+	if (membership) return membership
+	const room = await prisma.room.findUnique({ where: { id: roomId }, select: { id: true, visibility: true } })
+	if (!room) throw ApiError.notFound("Room not found")
+	if (room.visibility === "PUBLIC") {
+		return roomsRepository.addMember(roomId, userId, "MEMBER")
+	}
+	throw ApiError.forbidden("You must join this room first")
 }
 
 export const messagesService = {

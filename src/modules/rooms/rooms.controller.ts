@@ -39,6 +39,11 @@ export const roomsController = {
 		res.status(200).json(ApiResponse.ok("Room deleted", result))
 	}),
 
+	findOrCreateDirectRoom: asyncHandler(async (req: Request, res: Response) => {
+		const room = await roomsService.findOrCreateDirectRoom(req.user!.id, req.body.participantId)
+		res.status(200).json(ApiResponse.ok("Direct room ready", room))
+	}),
+
 	joinRoom: asyncHandler(async (req: Request, res: Response) => {
 		const result = await roomsService.joinRoom(req.user!.id, req.params.id, req.body)
 		res.status(200).json(ApiResponse.ok("Joined room", result))

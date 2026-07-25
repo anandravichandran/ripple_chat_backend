@@ -1,150 +1,365 @@
-# Ripple Chat — Backend
+# Ripple Chat Application
 
-Production-ready backend for **Ripple Chat**, built with Node.js 22, Express, TypeScript, PostgreSQL (Neon) + Prisma, and Socket.io. It implements the full REST API and realtime events required by the existing Ripple Chat frontend without any changes to the UI.
+A full-stack real-time chat application built with **Next.js**, **TypeScript**, **Express.js**, **PostgreSQL (Prisma)**, and **Socket.IO**.
 
-## Tech stack
+## Tech Stack
 
-| Concern | Choice |
-|---|---|
-| Runtime | Node.js 22 LTS, TypeScript |
-| Framework | Express.js |
-| Database | PostgreSQL (Neon) |
-| ORM | Prisma |
-| Realtime | Socket.io |
-| Auth | JWT access + refresh (rotation + reuse detection) |
-| Validation | Zod + express-validator |
-| Email | Nodemailer |
-| Storage | Cloudinary |
-| Hashing | bcrypt |
-| Security | Helmet, CORS, rate limiting, cookie-parser, compression |
-| Logging | Winston + Morgan |
+### Frontend
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- TanStack React Query
+- Axios
+- React Hook Form
+- Radix UI
+- Socket.IO Client
 
-## Project structure
+### Backend
+- Express.js
+- TypeScript
+- Prisma ORM
+- PostgreSQL
+- Socket.IO
+- JWT Authentication
+- Bcrypt
+- Nodemailer
+
+---
+
+# Features
+
+- User Authentication
+- Email Verification (OTP)
+- JWT Authentication
+- Real-time Chat
+- Private Rooms
+- Public Rooms
+- User Profile
+- Online / Offline Status
+- Notifications
+- Admin Dashboard
+- Role-based Authorization
+- File Upload Support
+- Prisma ORM
+- PostgreSQL Database
+- Responsive UI
+
+---
+
+# working flow after move to dhasboard --> create public any one can join in the public can chat it .
+
+# still invite to another user not working still im wokring on it . 
+
+# admin can monitor everything and delete same as make as admin for the another user all the premission accessing having
+
+# frontend deployed in the vercel but backend also deployed successfully in the render but it have SMTP problem due to the google SMTP mail doesnt allow third party mailer so it has blocked if want to check in the frontend UI and UX check with vercel same as backend also run successfully but i have an error in SMTP  that ( it tired resend,brevo) they asked RESTAPI key which means sender have the own domain.
+
+# Project Structure
 
 ```
-src/
-  config/          env, cors, logger, cloudinary
-  database/        Prisma client singleton + connect/disconnect
-  middlewares/      auth, role, validate, error, rateLimiter, upload
-  modules/
-    auth/          register/login/verify/refresh/forgot/reset
-    users/         profile, avatar, search, sessions
-    rooms/         create/list/get/update/delete/join/leave
-    messages/      list/create/edit/delete/react/attachments/receipts
-    notifications/ list/mark-read/mark-all-read/delete
-    socket/        Socket.io server, JWT socket auth, presence
-    email/         Nodemailer transport + HTML templates
-    upload/        Cloudinary upload service
-  routes/          central API router
-  utils/           ApiResponse, ApiError, jwt, otp, token, password, pagination
-  types/           shared + Express augmentation
-  app.ts           Express app wiring
-  server.ts        HTTP + Socket.io bootstrap, graceful shutdown
-prisma/
-  schema.prisma    full normalized schema (12 models, UUID PKs, indexes, FKs)
-  seed.ts          demo users + room + message
-docs/
-  API.md           REST API reference
-  SOCKET_EVENTS.md Socket.io event reference
-ripple-chat-backend.postman_collection.json
+Ripple Chat
+│
+├── ripple_chat_application_frontend/
+│   ├── app/
+│   ├── components/
+│   ├── hooks/
+│   ├── lib/
+│   ├── services/
+│   ├── public/
+│   └── package.json
+│
+└── ripple_chat_backend/
+    ├── prisma/
+    ├── src/
+    ├── uploads/
+    ├── package.json
+    └── tsconfig.json
 ```
 
-## Getting started
+---
 
-### 1. Install dependencies
+# Prerequisites
+
+Install the following before running the project.
+
+- Node.js 22.x
+- npm (comes with Node.js)
+- PostgreSQL Database (or Neon PostgreSQL)
+- Git
+
+Verify installation:
+
+```bash
+node -v
+npm -v
+```
+
+---
+
+# Backend Installation
+
+Go to backend directory
+
+```bash
+cd ripple_chat_backend
+```
+
+Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Configure environment
-
-Copy `.env.example` to `.env` and fill in real values (Neon connection string, JWT secrets, SMTP, Cloudinary):
+Generate Prisma Client
 
 ```bash
-cp .env.example .env
+npx prisma generate
 ```
 
-Generate strong JWT secrets, e.g.:
+Run Database Migration
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+npx prisma migrate dev
 ```
 
-### 3. Set up the database
+(Optional) Seed database
 
 ```bash
-npx prisma migrate dev --name init   # creates tables from prisma/schema.prisma
-npm run prisma:seed                  # optional demo data
+npm run prisma:seed
 ```
 
-### 4. Run the server
+Start backend
 
 ```bash
-npm run dev       # ts-node/tsx watch mode on http://localhost:4000
-npm run build     # compile to dist/
-npm start         # run compiled build
+npm run dev
 ```
 
-A health check is available at `GET /health` (also mirrored at `GET /api/health`).
+Backend runs on
 
-## API response format
-
-Every endpoint returns a consistent envelope:
-
-```json
-{
-  "success": true,
-  "message": "Human readable message",
-  "data": {},
-  "errors": null
-}
+```
+http://localhost:4000
 ```
 
-Routes are available both unprefixed (e.g. `POST /auth/login`, matching the original spec exactly) and under `/api` (e.g. `POST /api/auth/login`) — point the frontend `NEXT_PUBLIC_API_URL` at either.
+---
 
-See `docs/API.md` for the full endpoint reference and `docs/SOCKET_EVENTS.md` for realtime events. Import `ripple-chat-backend.postman_collection.json` into Postman to try every route (set the `baseUrl` and `accessToken` collection variables).
+# Frontend Installation
 
-## Authentication model
+Open another terminal.
 
-- **Access token** (15 min, `JWT_ACCESS_EXPIRES`): returned in the JSON body on login/refresh. The frontend keeps it **in memory only** and sends it as `Authorization: Bearer <token>`.
-- **Refresh token** (7 days, `JWT_REFRESH_EXPIRES`): set as an `httpOnly`, `secure`, `sameSite=strict` cookie (`refreshToken`). Never exposed to JS.
-- **Rotation**: every `POST /auth/refresh` issues a brand-new refresh token and immediately revokes the previous one (same rotation `family`).
-- **Reuse detection**: if a revoked refresh token is presented again, the entire token family is revoked server-side and the user must log in again — this contains stolen-token replay attacks.
-- **Email verification gate**: `isVerified` must be `true` to log in or to authenticate a Socket.io connection.
-- **Roles**: `USER`, `MODERATOR`, `ADMIN` via `requireRole()` middleware.
+Go to frontend
 
-## Realtime (Socket.io)
+```bash
+cd ripple_chat_application_frontend
+```
 
-- The client connects with `io(SERVER_URL, { auth: { token: accessToken } })`.
-- `socketAuthMiddleware` verifies the JWT and loads the user before any event handler runs; unauthenticated/unverified sockets are rejected at handshake time.
-- Presence is tracked in-memory per user (a `Set` of socket ids) so a user is only marked offline once **every** tab/device disconnects (multi-tab safe). Presence flips also update `User.status`/`lastSeen` in Postgres.
-- Server-initiated heartbeat (`heartbeat`/`heartbeatAck`) runs alongside Socket.io's built-in ping/pong for fast dead-connection detection and graceful client reconnects.
-- REST mutations that affect connected clients (new/edited/deleted messages, room create/update/delete) also emit the matching Socket.io event so REST-only and socket-driven UIs stay in sync.
+Install packages
 
-Full event catalogue: `docs/SOCKET_EVENTS.md`.
+```bash
+npm install
+```
 
-## Security checklist
+Run frontend
 
-- `helmet()` for secure headers, strict CORS allow-list from `CLIENT_URL`.
-- Global + auth-specific + OTP-specific rate limiting (`express-rate-limit`).
-- All input validated with Zod (`middlewares/validate.middleware.ts`) before hitting services.
-- Passwords hashed with bcrypt (12 rounds); OTPs and reset/refresh tokens are hashed before storage — raw secrets are never persisted.
-- Prisma uses parameterized queries everywhere; no raw string-interpolated SQL.
-- `env.ts` validates all required environment variables with Zod at boot and fails fast if misconfigured.
-- Centralized error handler normalizes Zod, Prisma, JWT, Multer, and generic errors into the standard response envelope and never leaks stack traces in production.
+```bash
+npm run dev
+```
 
-## Uploads
+Frontend runs on
 
-- Avatars: `PATCH /users/avatar` (multipart field `avatar`), images only, 8MB max, resized/optimized via Cloudinary transformation.
-- Message attachments: `POST /rooms/:id/messages/attachments` (multipart field `file`), images + common document types, 25MB max, uploaded to Cloudinary and attached to a message via `attachment` in `POST /rooms/:id/messages`.
+```
+http://localhost:3000
+```
 
-## Logging
+---
 
-- `winston` writes structured JSON logs to `logs/combined.log` and `logs/error.log`, plus colorized console output in development. Scoped child loggers exist for `auth` and `socket` concerns.
-- `morgan` streams HTTP access logs into the same Winston pipeline (`combined` format), skipping health checks.
+# Environment Variables
 
-## Notes on scope
+Create a `.env` file inside the backend project.
 
-- The Admin Panel described in the frontend brief is UI-only (per that spec) and is not backed by dedicated admin CRUD endpoints here; standard role-based middleware (`requireRole("ADMIN")`) is included and ready to protect any admin routes you add later.
-- Direct messages are modeled as private 1:1 `Room`s (`isDirect: true`) rather than a separate collection, so DMs reuse the same rooms/messages infrastructure, permissions, and realtime events as group rooms.
+Required variables include:
+
+```env
+NODE_ENV=development
+
+PORT=4000
+
+CLIENT_URL=http://localhost:3000
+
+DATABASE_URL=<your_postgresql_connection>
+
+JWT_ACCESS_SECRET=<your_secret>
+
+JWT_REFRESH_SECRET=<your_secret>
+
+SMTP_HOST=smtp.gmail.com
+
+SMTP_PORT=587
+
+SMTP_USER=<gmail>
+
+SMTP_PASS=<gmail_app_password>
+
+EMAIL_FROM=<gmail>
+```
+
+---
+
+# Available Scripts
+
+## Backend
+
+```bash
+npm install
+npm run dev
+npm run build
+npm start
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+npm run prisma:studio
+```
+
+## Frontend
+
+```bash
+npm install
+npm run dev
+npm run build
+npm start
+npm run lint
+npm run typecheck
+```
+
+---
+
+# Demo User Account
+
+If you want to test immediately, use the following account.
+
+**Role**
+
+```
+admin
+```
+
+**Email**
+
+```
+anandravichandran1201@gmail.com
+```
+
+**Password**
+
+```
+Anand1212#
+```
+user you can create it 
+You may also register a new user from the application.
+
+---
+
+# Running the Application
+
+Start backend
+
+```bash
+cd ripple_chat_backend
+npm install
+npm run dev
+```
+
+Open another terminal.
+
+Start frontend
+
+```bash
+cd ripple_chat_application_frontend
+npm install
+npm run dev
+```
+
+Visit
+
+```
+http://localhost:3000
+```
+
+Login using the demo account or create a new account.
+
+---
+
+# Authentication Flow
+
+1. Register
+2. Email Verification (OTP)
+3. Login
+4. JWT Authentication
+5. Access Chat Dashboard
+6. Join or Create Rooms
+7. Start Real-time Messaging
+
+---
+
+# Database
+
+ORM
+
+- Prisma
+
+Database
+
+- PostgreSQL (Neon Compatible)
+
+Generate Prisma Client
+
+```bash
+npx prisma generate
+```
+
+Run Migration
+
+```bash
+npx prisma migrate dev
+```
+
+Open Prisma Studio
+
+```bash
+npx prisma studio
+```
+
+---
+
+# Technologies Used
+
+Frontend
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- React Query
+- Axios
+
+Backend
+
+- Express.js
+- Prisma
+- PostgreSQL
+- Socket.IO
+- JWT
+- Nodemailer
+- Bcrypt
+
+---
+
+# Notes for Evaluators
+
+- Clone the repository.
+- Configure the backend `.env` file.
+- Install dependencies for both frontend and backend.
+- Run database migrations.
+- Start backend first, then frontend.
+- Login using the demo credentials or register a new account.
+- Explore user authentication, room management, notifications, and real-time chat functionality.

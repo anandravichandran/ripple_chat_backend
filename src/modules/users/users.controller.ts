@@ -2,6 +2,8 @@ import type { Request, Response } from "express"
 import { asyncHandler } from "../../utils/asyncHandler"
 import { ApiResponse } from "../../utils/ApiResponse"
 import { usersService } from "./users.service"
+import { getIO } from "../socket/socket.server"
+import { SOCKET_EVENTS } from "../socket/socket.events"
 
 export const usersController = {
 	getMe: asyncHandler(async (req: Request, res: Response) => {
@@ -11,16 +13,19 @@ export const usersController = {
 
 	updateMe: asyncHandler(async (req: Request, res: Response) => {
 		const user = await usersService.updateMe(req.user!.id, req.body)
+		getIO()?.emit(SOCKET_EVENTS.USER_UPDATED, { user })
 		res.status(200).json(ApiResponse.ok("Profile updated", user))
 	}),
 
 	updateAvatar: asyncHandler(async (req: Request, res: Response) => {
 		const user = await usersService.updateAvatar(req.user!.id, req.file)
+		getIO()?.emit(SOCKET_EVENTS.USER_UPDATED, { user })
 		res.status(200).json(ApiResponse.ok("Avatar updated", user))
 	}),
 
 	updateBanner: asyncHandler(async (req: Request, res: Response) => {
 		const user = await usersService.updateBanner(req.user!.id, req.file)
+		getIO()?.emit(SOCKET_EVENTS.USER_UPDATED, { user })
 		res.status(200).json(ApiResponse.ok("Banner updated", user))
 	}),
 

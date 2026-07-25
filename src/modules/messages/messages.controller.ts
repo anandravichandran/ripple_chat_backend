@@ -77,4 +77,14 @@ export const messagesController = {
 		getIO()?.to(`room:${message.roomId}`).emit(SOCKET_EVENTS.MESSAGE_DELIVERED, { messageId: message.id })
 		res.status(200).json(ApiResponse.ok("Marked delivered", message))
 	}),
+
+	searchGlobal: asyncHandler(async (req: Request, res: Response) => {
+		const { q, limit, roomId } = req.query as { q?: string; limit?: string; roomId?: string }
+		if (!q || q.length < 2) throw ApiError.badRequest("Query must be at least 2 characters")
+		const result = await messagesService.searchGlobal(req.user!.id, q, {
+			limit: limit ? Number(limit) : 20,
+			roomId,
+		})
+		res.status(200).json(ApiResponse.ok("Search results", result))
+	}),
 }

@@ -126,4 +126,29 @@ export const messagesService = {
 		await roomsRepository.markAllRead(roomId, userId)
 		return { seen: true }
 	},
+
+	async searchGlobal(userId: string, q: string, opts: { limit?: number; roomId?: string }) {
+		const userRoomIds = await prisma.roomMember.findMany({
+			where: { userId, ...(opts.roomId ? { roomId: opts.roomId } : {}) },
+			select: { roomId: true },
+		})
+		const roomIds = userRoomIds.map((r) => r.roomId)
+		if (roomIds.length === 0) return { items: [] }
+
+		const messages = await prisma.message.findMany({
+			where: {
+				roomId: { in: roomIds },
+				text: { contains: q, mode: "insensitive" },
+				deletedAt: null,
+			},
+			include: {
+				author: { select: { id: true, name: true, username: true, avatarUrl: true } },
+				room: { select: { id: true, name: true } },
+			},
+			orderBy: { createdAt: "desc" },
+			take: opts.limit ?? 20,
+		})
+
+		return { items: messages }
+	},
 }

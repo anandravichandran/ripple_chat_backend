@@ -4,6 +4,8 @@ import { ApiResponse } from "../../utils/ApiResponse"
 import { ApiError } from "../../utils/ApiError"
 import { authService } from "./auth.service"
 import { env, isProd } from "../../config/env"
+import { getIO } from "../socket/socket.server"
+import { SOCKET_EVENTS } from "../socket/socket.events"
 
 const REFRESH_COOKIE = "refreshToken"
 
@@ -25,6 +27,7 @@ function deviceContext(req: Request) {
 export const authController = {
 	register: asyncHandler(async (req: Request, res: Response) => {
 		const result = await authService.register(req.body)
+		getIO()?.emit(SOCKET_EVENTS.USER_CREATED, { user: result })
 		res.status(201).json(ApiResponse.ok("Account created. Check your email for a verification code.", result))
 	}),
 

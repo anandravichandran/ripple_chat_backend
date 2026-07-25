@@ -67,6 +67,39 @@ enum DeviceType {
   TABLET
 }
 
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum ReportStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+enum AuditAction {
+  USER_CREATED
+  USER_SUSPENDED
+  USER_UNSUSPENDED
+  USER_DELETED
+  USER_ROLE_CHANGED
+  ROOM_CREATED
+  ROOM_DELETED
+  ROOM_UPDATED
+  MESSAGE_DELETED
+  REPORT_CREATED
+  REPORT_RESOLVED
+  REPORT_DISMISSED
+  INVITE_SENT
+  INVITE_ACCEPTED
+  INVITE_DECLINED
+  SYSTEM_CONFIG
+}
+
 // ==============================
 // User
 // ==============================
@@ -103,6 +136,11 @@ model User {
   passwordResets     PasswordReset[]
   sessions           Session[]
   devices            Device[]
+  auditLogs          AuditLog[]
+  sentInvites        RoomInvite[]       @relation("Inviter")
+  receivedInvites    RoomInvite[]       @relation("Invitee")
+  reports            Report[]           @relation("Reporter")
+  reviewedReports    Report[]           @relation("Reviewer")
 
   @@index([email])
   @@index([username])
@@ -130,6 +168,7 @@ model Room {
 
   members  RoomMember[]
   messages Message[]
+  invites  RoomInvite[]
 
   @@index([ownerId])
   @@index([visibility])
@@ -155,6 +194,25 @@ model RoomMember {
   @@index([userId])
   @@index([roomId])
   @@map("room_members")
+}
+
+model RoomInvite {
+  id         String       @id @default(uuid())
+  roomId     String
+  room       Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  inviterId  String
+  inviter    User         @relation("Inviter", fields: [inviterId], references: [id])
+  inviteeId  String
+  invitee    User         @relation("Invitee", fields: [inviteeId], references: [id])
+  status     InviteStatus @default(PENDING)
+  message    String?
+  respondedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@unique([roomId, inviteeId])
+  @@index([inviteeId, status])
+  @@index([inviterId])
+  @@map("room_invites")
 }
 
 // ==============================
@@ -247,6 +305,32 @@ model Notification {
 }
 
 // ==============================
+// Reports (user/message moderation)
+// ==============================
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  reporter    User         @relation("Reporter", fields: [reporterId], references: [id])
+  targetType  String       // "user", "message", "room"
+  targetId    String
+  reason      String
+  description String?
+  status      ReportStatus @default(OPEN)
+  reviewerId  String?
+  reviewer    User?        @relation("Reviewer", fields: [reviewerId], references: [id])
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@index([reporterId])
+  @@index([reviewerId])
+  @@map("reports")
+}
+
+// ==============================
 // Auth-related: RefreshToken, OTP, PasswordReset
 // ==============================
 
@@ -333,4 +417,26 @@ model Device {
 
   @@index([userId])
   @@map("devices")
+}
+
+// ==============================
+// Audit Log
+// ==============================
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  action    AuditAction
+  actorId   String?
+  actor     User?       @relation(fields: [actorId], references: [id])
+  targetId  String?
+  targetType String?    // "user", "room", "message", "report"
+  metadata  Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

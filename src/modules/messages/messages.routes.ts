@@ -26,5 +26,6 @@ flatRouter.patch("/:id", validate({ params: uuidParamSchema, body: updateMessage
 flatRouter.delete("/:id", validate({ params: uuidParamSchema }), messagesController.deleteMessage)
 flatRouter.post("/:id/reactions", validate({ params: uuidParamSchema, body: reactSchema }), messagesController.react)
 flatRouter.post("/:id/delivered", validate({ params: uuidParamSchema }), messagesController.markDelivered)
+flatRouter.get("/search/global", messagesController.searchGlobal)
 
 export { nestedRouter as messagesRoutesForRoom, flatRouter as messagesRoutes }

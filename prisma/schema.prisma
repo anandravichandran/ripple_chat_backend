@@ -79,6 +79,8 @@ model User {
   passwordHash   String
   avatarUrl      String?
   avatarPublicId String?
+  bannerUrl      String?
+  bannerPublicId String?
   bio            String?    @db.VarChar(280)
   phone          String?
   socials        Json?

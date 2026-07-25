@@ -1,95 +1,63 @@
-import https from "https"
+import nodemailer from "nodemailer"
 import { env, isProd } from "../../config/env"
 import { logger } from "../../config/logger"
 import { otpEmailTemplate, resetPasswordEmailTemplate, welcomeEmailTemplate } from "./email.templates"
 
-let brevoHealthy = false
+const transporter = nodemailer.createTransport({
+	host: env.SMTP_HOST || undefined,
+	port: env.SMTP_PORT,
+	secure: env.SMTP_PORT === 465,
+	auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
+	connectionTimeout: 15_000,
+	greetingTimeout: 10_000,
+	socketTimeout: 30_000,
+})
 
-interface BrevoEmail {
-	to: { email: string; name?: string }[]
-	sender: { name?: string; email: string }
-	subject: string
-	htmlContent: string
-}
-
-function callBrevoAPI(payload: BrevoEmail): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const body = JSON.stringify(payload)
-		const req = https.request(
-			"https://api.brevo.com/v3/smtp/email",
-			{
-				method: "POST",
-				headers: {
-					"api-key": env.BREVO_API_KEY,
-					"content-type": "application/json",
-					accept: "application/json",
-				},
-			},
-			(res) => {
-				let data = ""
-				res.on("data", (chunk) => (data += chunk))
-				res.on("end", () => {
-					if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-						resolve()
-					} else {
-						let detail = ""
-						try {
-							const parsed = JSON.parse(data)
-							detail = parsed.message || data
-						} catch {
-							detail = data
-						}
-						reject(new Error(`Brevo API ${res.statusCode}: ${detail}`))
-					}
-				})
-			},
-		)
-		req.on("error", reject)
-		req.setTimeout(15_000, () => {
-			req.destroy()
-			reject(new Error("Brevo API request timed out"))
-		})
-		req.write(body)
-		req.end()
-	})
-}
-
-function parseFrom(from: string): { name: string; email: string } {
-	const match = from.match(/^(.+)<(.+)>$/)
-	if (match) return { name: match[1].trim(), email: match[2].trim() }
-	return { name: "", email: from.trim() }
-}
+let smtpHealthy = false
 
 export async function verifySmtpConnection(): Promise<boolean> {
-	if (!env.BREVO_API_KEY) {
-		logger.warn("Brevo API key not configured — emails will be skipped")
+	if (!env.SMTP_HOST) {
+		logger.warn("SMTP not configured — emails will be skipped")
 		return false
 	}
-	brevoHealthy = true
-	logger.info("Brevo API ready")
-	return true
+	try {
+		await Promise.race([
+			transporter.verify(),
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error("SMTP verify timed out after 10s")), 10_000),
+			),
+		])
+		smtpHealthy = true
+		logger.info("SMTP connection verified")
+		return true
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err)
+		const stack = err instanceof Error ? err.stack : undefined
+		logger.error("SMTP verification failed", { message, stack })
+		smtpHealthy = false
+		return false
+	}
 }
 
 async function send(to: string, subject: string, html: string) {
-	if (!env.BREVO_API_KEY) {
-		logger.warn(`Brevo not configured; skipping email send to ${to} ("${subject}")`)
+	if (!env.SMTP_HOST) {
+		logger.warn(`SMTP not configured; skipping email send to ${to} ("${subject}")`)
 		if (!isProd) logger.debug(html)
 		return
 	}
 
-	if (!brevoHealthy) {
-		logger.warn(`Email service unhealthy; skipping email send to ${to} ("${subject}")`)
+	if (!smtpHealthy) {
+		logger.warn(`SMTP unhealthy; skipping email send to ${to} ("${subject}")`)
 		return
 	}
 
-	const sender = parseFrom(env.EMAIL_FROM)
-	await callBrevoAPI({
-		sender,
-		to: [{ email: to }],
+	const info = await transporter.sendMail({
+		from: env.EMAIL_FROM,
+		to,
 		subject,
-		htmlContent: html,
+		html,
 	})
-	logger.info("Email sent via Brevo", { to, subject })
+	logger.debug("Email sent", { messageId: info.messageId, to, subject })
 }
 
 export async function sendOtpEmail(to: string, name: string, code: string) {

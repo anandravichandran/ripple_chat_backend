@@ -34,6 +34,7 @@ export const roomsService = {
 			visibility?: "PUBLIC" | "PRIVATE"
 			pinned?: string
 			recentlyJoined?: string
+			isDirect?: string
 		},
 		pagination: { page?: string | number; limit?: string | number },
 	) {
@@ -46,6 +47,7 @@ export const roomsService = {
 				visibility: filters.visibility,
 				pinned: filters.pinned === undefined ? undefined : filters.pinned === "true",
 				recentlyJoined: filters.recentlyJoined === undefined ? undefined : filters.recentlyJoined === "true",
+				isDirect: filters.isDirect === undefined ? undefined : filters.isDirect === "true",
 			},
 			skip,
 			limit,

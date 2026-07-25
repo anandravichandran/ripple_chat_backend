@@ -47,6 +47,7 @@ export const roomsRepository = {
 			visibility?: RoomVisibility
 			pinned?: boolean
 			recentlyJoined?: boolean
+			isDirect?: boolean
 		},
 		skip: number,
 		take: number,
@@ -61,6 +62,7 @@ export const roomsRepository = {
 		if (filters.q) roomWhere.name = { contains: filters.q, mode: "insensitive" }
 		if (filters.category) roomWhere.category = filters.category
 		if (filters.visibility) roomWhere.visibility = filters.visibility
+		if (filters.isDirect !== undefined) roomWhere.isDirect = filters.isDirect
 		if (filters.pinned !== undefined || filters.recentlyJoined !== undefined) {
 			roomWhere.members = { some: { ...memberWhere } }
 		}

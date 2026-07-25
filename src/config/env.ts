@@ -18,7 +18,10 @@ const envSchema = z.object({
 
 	COOKIE_DOMAIN: z.string().optional(),
 
-	BREVO_API_KEY: z.string().optional().default(""),
+	SMTP_HOST: z.string().optional().default(""),
+	SMTP_PORT: z.coerce.number().optional().default(587),
+	SMTP_USER: z.string().optional().default(""),
+	SMTP_PASS: z.string().optional().default(""),
 	EMAIL_FROM: z.string().optional().default("Ripple Chat <no-reply@ripple.chat>"),
 
 	CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),

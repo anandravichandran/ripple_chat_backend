@@ -30,6 +30,21 @@ export const usersService = {
 		return updated
 	},
 
+	async updateBanner(userId: string, file: Express.Multer.File | undefined) {
+		if (!file) throw ApiError.badRequest("No banner file provided")
+
+		const existing = await usersRepository.findBannerPublicId(userId)
+		const uploaded = await uploadImageBuffer(file.buffer, file.mimetype, "banners")
+
+		const updated = await usersRepository.updateBanner(userId, uploaded.url, uploaded.publicId)
+
+		if (existing?.bannerPublicId) {
+			void deleteAsset(existing.bannerPublicId, "image")
+		}
+
+		return updated
+	},
+
 	async searchUsers(query: string | undefined, pagination: { page?: string | number; limit?: string | number }) {
 		const { page, limit, skip } = parsePagination(pagination)
 		const [items, total] = await usersRepository.search(query, skip, limit)

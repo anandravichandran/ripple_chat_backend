@@ -7,6 +7,7 @@ export const PUBLIC_USER_SELECT = {
 	username: true,
 	email: true,
 	avatarUrl: true,
+	bannerUrl: true,
 	bio: true,
 	phone: true,
 	socials: true,
@@ -29,6 +30,12 @@ export const usersRepository = {
 
 	findAvatarPublicId: (id: string) =>
 		prisma.user.findUnique({ where: { id }, select: { avatarPublicId: true } }),
+
+	updateBanner: (id: string, bannerUrl: string, bannerPublicId: string) =>
+		prisma.user.update({ where: { id }, data: { bannerUrl, bannerPublicId }, select: PUBLIC_USER_SELECT }),
+
+	findBannerPublicId: (id: string) =>
+		prisma.user.findUnique({ where: { id }, select: { bannerPublicId: true } }),
 
 	setStatus: (id: string, status: UserStatus) =>
 		prisma.user.update({ where: { id }, data: { status, lastSeen: new Date() } }),

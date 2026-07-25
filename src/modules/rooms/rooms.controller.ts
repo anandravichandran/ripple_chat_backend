@@ -13,10 +13,10 @@ export const roomsController = {
 	}),
 
 	listRooms: asyncHandler(async (req: Request, res: Response) => {
-		const { q, category, visibility, pinned, recentlyJoined, page, limit } = req.query as Record<string, string>
+		const { q, category, visibility, pinned, recentlyJoined, isDirect, page, limit } = req.query as Record<string, string>
 		const result = await roomsService.listRooms(
 			req.user!.id,
-			{ q, category, visibility: visibility as "PUBLIC" | "PRIVATE", pinned, recentlyJoined },
+			{ q, category, visibility: visibility as "PUBLIC" | "PRIVATE", pinned, recentlyJoined, isDirect },
 			{ page, limit },
 		)
 		res.status(200).json(ApiResponse.ok("Rooms fetched", result))

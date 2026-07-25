@@ -1,3 +1,4 @@
+import path from "path"
 import express, { type Express } from "express"
 import helmet from "helmet"
 import cors from "cors"
@@ -30,6 +31,8 @@ export function createApp(): Express {
 		}),
 	)
 	app.use(globalRateLimiter)
+
+	app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")))
 
 	app.use("/api", apiRouter)
 

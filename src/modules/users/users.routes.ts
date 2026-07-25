@@ -12,6 +12,7 @@ router.use(requireAuth)
 router.get("/me", usersController.getMe)
 router.patch("/me", validate({ body: updateProfileSchema }), usersController.updateMe)
 router.patch("/avatar", uploadAvatar, usersController.updateAvatar)
+router.patch("/banner", uploadAvatar, usersController.updateBanner)
 router.get("/search", validate({ query: userSearchQuerySchema }), usersController.searchUsers)
 router.get("/me/sessions", usersController.getSessions)
 

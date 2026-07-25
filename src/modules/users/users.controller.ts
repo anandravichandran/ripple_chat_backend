@@ -19,6 +19,11 @@ export const usersController = {
 		res.status(200).json(ApiResponse.ok("Avatar updated", user))
 	}),
 
+	updateBanner: asyncHandler(async (req: Request, res: Response) => {
+		const user = await usersService.updateBanner(req.user!.id, req.file)
+		res.status(200).json(ApiResponse.ok("Banner updated", user))
+	}),
+
 	searchUsers: asyncHandler(async (req: Request, res: Response) => {
 		const { q, page, limit } = req.query as { q?: string; page?: string; limit?: string }
 		const result = await usersService.searchUsers(q, { page, limit })

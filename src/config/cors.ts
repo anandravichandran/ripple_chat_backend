@@ -1,16 +1,22 @@
 import type { CorsOptions } from "cors"
-import { env } from "./env"
+import { env, isProd } from "./env"
 
-const allowedOrigins = env.CLIENT_URL.split(",").map((origin) => origin.trim())
+const allowedOrigins = env.CLIENT_URL.split(",").map((o) => o.trim()).filter(Boolean)
+
+function isOriginAllowed(origin: string): boolean {
+	if (allowedOrigins.some((a) => a === origin)) return true
+	if (!isProd) return true
+	if (origin.endsWith(".vercel.app")) return true
+	return false
+}
 
 export const corsOptions: CorsOptions = {
 	origin: (origin, callback) => {
-		// Allow non-browser tools (curl/postman) with no origin header.
-		if (!origin || allowedOrigins.includes(origin)) {
+		if (!origin || isOriginAllowed(origin)) {
 			callback(null, true)
 			return
 		}
-		callback(new Error("Not allowed by CORS"))
+		callback(null, false)
 	},
 	credentials: true,
 	methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
